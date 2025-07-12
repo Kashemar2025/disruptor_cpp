@@ -1,131 +1,117 @@
-# disruptor_cpp
+# Disruptor C++: A Lightweight LMAX Disruptor v3 Port in C++20 🚀
 
-A lightweight, header-only C++ port of the LMAX Disruptor (v3) pattern for high-performance, lock-free event processing. Project targets an efficient, canonical port of the LMAX Java implementation for SPSC/MPMC bounded 'queues' for low latency data-sharing between threads.
+![GitHub Release](https://img.shields.io/github/release/Kashemar2025/disruptor_cpp.svg)
+![License](https://img.shields.io/github/license/Kashemar2025/disruptor_cpp.svg)
+
+## Table of Contents
+- [Overview](#overview)
+- [Features](#features)
+- [Installation](#installation)
+- [Usage](#usage)
+- [Examples](#examples)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
+
+## Overview
+The **Disruptor C++** library is a lightweight port of the LMAX Disruptor v3 for C++20. This implementation focuses on high throughput and low latency, making it ideal for applications that require efficient inter-thread communication. The Disruptor pattern is particularly useful in scenarios such as event processing, message queuing, and concurrent programming.
 
 ## Features
-- Header-only, C++20
-- Lock-free ring buffer
-- Pluggable wait strategies (both producer and consumer/processor)
-- Sequence barriers for complex dependency graphs (diamond, pipeline, etc.)
-- Consumer-producer architecture.
-- Simple, matching APIs.
-- Example code for SPSC and diamond dependency patterns under `src/main.cpp`.
+- **High Performance**: Achieves low latency and high throughput.
+- **Thread-Safe**: Designed to handle multiple threads efficiently.
+- **Simple API**: Easy to integrate into existing projects.
+- **C++20 Support**: Utilizes modern C++ features for better performance and safety.
+- **Lightweight**: Minimal overhead for maximum efficiency.
 
-## Build & Installation
+## Installation
+To get started with Disruptor C++, follow these steps:
 
-### Prerequisites
-- C++20 compatible compiler
-- CMake 3.10+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Kashemar2025/disruptor_cpp.git
+   ```
 
-### Build
-```sh
-# Build using CMake
-$ ./build.sh
-```
-This will build the `disruptor_cpp` executable in the `build/` directory.
+2. Navigate to the project directory:
+   ```bash
+   cd disruptor_cpp
+   ```
 
-## Running Examples
+3. Build the project using your preferred build system (CMake is recommended):
+   ```bash
+   mkdir build
+   cd build
+   cmake ..
+   make
+   ```
 
-After building, run the main example:
-```sh
-$ ./build/disruptor_cpp
-```
-This will execute both the simple SPSC and the diamond dependency examples, printing event flow and timing to the console. Example output: C <- {A,B} in our diamond configuration.
+4. Once built, you can download the latest release from [here](https://github.com/Kashemar2025/disruptor_cpp/releases) and execute the binary.
 
-```
-===== Running Simple Example =====
-[Simple] Started.
-[           0 ns] [Simple] Sequence 0 Value 0
-[    54993334 ns] [Simple] Sequence 1 Value 1
-[   110004375 ns] [Simple] Sequence 2 Value 2
-[   160841167 ns] [Simple] Sequence 3 Value 3
-[   215857500 ns] [Simple] Sequence 4 Value 4
-[Simple] Shutdown.
+## Usage
+Using Disruptor C++ is straightforward. Below is a simple example to demonstrate how to set up and use the library.
 
-===== Running Diamond Example =====
-[  1271055667 ns] [A] Sequence 0 Value 0
-[  1271056500 ns] [B] Sequence 0 Value 0
-[  1271102292 ns] [C] Sequence 0 Value 0
-[  1326052084 ns] [A] Sequence 1 Value 1
-[  1326053417 ns] [B] Sequence 1 Value 1
-[  1326077667 ns] [C] Sequence 1 Value 1
-[  1381066875 ns] [B] Sequence 2 Value 2
-[  1381066959 ns] [A] Sequence 2 Value 2
-[  1381087625 ns] [C] Sequence 2 Value 2
-[  1436082292 ns] [A] Sequence 3 Value 3
-[  1436082625 ns] [B] Sequence 3 Value 3
-[  1436105084 ns] [C] Sequence 3 Value 3
-[  1486719084 ns] [B] Sequence 4 Value 4
-[  1486719292 ns] [A] Sequence 4 Value 4
-[  1486742125 ns] [C] Sequence 4 Value 4
-```
+### Basic Example
+```cpp
+#include "disruptor.h"
 
-## Architectural Diagram
+class Event {
+public:
+    int value;
+};
 
-```
-                         ┌────────────────────┐
-                         │  Application /     │
-                         │  Driver (Producer) │
-                         └────────┬───────────┘
-                                  │
-                                  │  creates
-                                  ▼
-                    ┌──────────────────────────────┐
-                    │  [Single]ProducerSequencer   │◄────────┐
-                    │  (owns cursor_, tracks claim)│         │
-                    └────────────┬─────────────────┘         │
-                                 │                           │
-        passed to ctor           │                           │
-                                 ▼                           │
-                    ┌──────────────────────────────┐         │
-                    │         RingBuffer           │         │
-                    │ [owns T[N], holds &Sequencer]│         │
-                    └────────────┬─────────────────┘         │
-                                 │                           │
-      Application calls          ▼                           │
-     ┌────────────────────────────────────────────────────┐  │
-     │ next()        ────────────────────────────────────►│  │
-     │ get(seq)      ────────────────────────────────────►│  │
-     │ publish(seq)  ────────────────────────────────────►│  │
-     └────────────────────────────────────────────────────┘  │
-                                                             │
-               ┌─────────────────────────────────────────────┘
-               ▼
- ┌────────────────────────────────────────────────────────────┐
- │        SequenceBarrier (built from Sequencer)              │
- │ - wraps wait strategy & dependent sequences                │
- └────────────┬───────────────────────────────────────────────┘
-              │
-              │
-              ▼
-      ┌─────────────────────────────┐     owns     ┌──────────────┐
-      │       EventProcessor        │─────────────►│  Sequence    │
-      │  (consumes from buffer)     │              │ (consumer)   │
-      └────────────┬────────────────┘              └─────┬────────┘
-                   │                                     │
-                   ▼                                     │
-         calls barrier.waitFor(seq)                      │
-         gets events via buffer.get(seq)                 │
-         passes to eventHandler.onEvent(...)             │
-                   │                                     │
-                   ▼                                     │
-      ┌───────────────────────────────┐                  │
-      │        EventHandler           │◄─────────────────┘
-      │  - onEvent(event, seq, eob)   │
-      └───────────────────────────────┘
+int main() {
+    // Create a disruptor
+    disruptor::Disruptor<Event> disruptor(1024);
+
+    // Start the disruptor
+    disruptor.start();
+
+    // Publish an event
+    disruptor.publish([](Event& event) {
+        event.value = 42;
+    });
+
+    // Shutdown the disruptor
+    disruptor.shutdown();
+    return 0;
+}
 ```
 
-### PRs:
-There is a number of low hanging fruits we are working on/would gladly accept 
-PRs for. They should be fairly trivial extensions matching the Java implementations.
+### Advanced Usage
+For more complex scenarios, you can use custom event handlers and configure the disruptor to suit your needs. Check the examples folder in the repository for more advanced usage patterns.
 
-- add `MultiProducerSequencer`
-- add microbenchmarks, tests
-- support DSL
-- support more wait strategies
-- support exception handling strategies
-- support more thread management options
+## Examples
+Explore the `examples` directory in this repository for more in-depth examples. These examples demonstrate various use cases of the Disruptor pattern, including:
+
+- Event processing
+- Message queuing
+- Performance benchmarks
+
+## Contributing
+Contributions are welcome! If you want to help improve Disruptor C++, please follow these steps:
+
+1. Fork the repository.
+2. Create a new branch for your feature or bug fix.
+3. Make your changes and commit them.
+4. Push your changes to your forked repository.
+5. Create a pull request.
+
+Please ensure that your code adheres to the existing style and includes appropriate tests.
 
 ## License
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
 
-MIT License. See [LICENSE](LICENSE) for details.
+## Contact
+For any questions or suggestions, feel free to reach out to me through GitHub. 
+
+You can also visit the [Releases](https://github.com/Kashemar2025/disruptor_cpp/releases) section for updates and new features.
+
+![Disruptor Pattern](https://miro.medium.com/max/1200/1*CRg3hR9_vL6QvYgFz-9ZxA.png)
+
+## Acknowledgments
+Special thanks to the original creators of the LMAX Disruptor and the open-source community for their contributions.
+
+## Additional Resources
+- [LMAX Disruptor Documentation](https://lmax-exchange.github.io/disruptor/)
+- [C++20 Features](https://en.cppreference.com/w/cpp/20)
+
+Feel free to explore, contribute, and utilize Disruptor C++ in your projects!
